@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <string>
+#include <unordered_map>
+#include <memory>
 //TODO: DETERMINISER
 
 // non déterministes (2+ transitions): 7, 22, 28, 29, 36, 43, 44
