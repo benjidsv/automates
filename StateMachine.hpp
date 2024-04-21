@@ -37,6 +37,7 @@ public:
     bool synchronous{}, deterministic{}, standard{}, complete{};
     explicit StateMachine();
     explicit StateMachine(const std::string& filePath);
+    explicit StateMachine(const StateMachine& other);
 
     std::vector<std::shared_ptr<State>> states;
 
@@ -46,11 +47,21 @@ public:
 
     void Standardize();
 
-    void Determinize();
-
     void Complete();
 
     void Synchronize();
+};
+
+class StateMachineContainer {
+public:
+    bool determinized = false;
+    
+    StateMachine base;
+    StateMachine deterministic;
+
+    StateMachineContainer() = default;
+    
+    void Determinize();
 };
 
 std::ostream & operator<<(std::ostream & Str, StateMachine const & v);

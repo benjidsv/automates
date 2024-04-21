@@ -5,7 +5,7 @@ int main() {
     std::cout << "Projet Automates - GRP F2 - Benjamin ARBOUSSET, Johan DAO DUY, Maxime GIMER" << std::endl;
 
     bool choiceIsValid = false;
-    StateMachine s;
+    StateMachineContainer c;
 
     while (!choiceIsValid) {
         std::cout << "Choisir un fichier d'automate : ";
@@ -13,8 +13,8 @@ int main() {
         std::cin >> choice;
 
         try {
-            s = StateMachine("/Users/benji/dev/cpp/automates/machines/F2-" + choice + ".txt");
-            std::cout << s << std::endl;
+            c.base = StateMachine("/Users/benji/dev/cpp/automates/machines/F2-" + choice + ".txt");
+            std::cout << c.base << std::endl;
             choiceIsValid = true;
         }
         catch (const std::runtime_error& e) {
@@ -23,47 +23,47 @@ int main() {
         }
     }
 
-    if (!s.synchronous) {
+    if (!c.base.synchronous) {
         std::cout << "L'automate n'est pas synchrone. Souhaitez vous le synchroniser ? (o/n) ";
         char choice;
         std::cin >> choice;
 
         if (choice == 'o') {
-            s.Synchronize();
-            std::cout << s << std::endl;
+            c.base.Synchronize();
+            std::cout << c.base << std::endl;
         }
     }
 
-    if (!s.standard) {
+    if (!c.base.standard) {
         std::cout << "L'automate n'est pas standard. Souhaitez vous le standardiser ? (o/n) ";
         char choice;
         std::cin >> choice;
 
         if (choice == 'o') {
-            s.Standardize();
-            std::cout << s << std::endl;
+            c.base.Standardize();
+            std::cout << c.base << std::endl;
         }
     }
 
-    if (!s.deterministic ) {
+    if (!c.base.deterministic ) {
         std::cout << "L'automate n'est pas déterministe. Souhaitez vous le déterminiser ? (o/n) ";
         char choice;
         std::cin >> choice;
 
         if (choice == 'o') {
-            s.Determinize();
-            std::cout << s << std::endl;
+            c.Determinize();
+            std::cout << c.deterministic << std::endl;
         }
     }
 
-    if (!s.complete) {
-        std::cout << "L'automate n'est pas complet. Souhaitez vous le compléter ? (o/n) ";
+    if (!c.base.complete) {
+        std::cout << "L'automate n'est pas complet. Souhaitez vouc->base le compléter ? (o/n) ";
         char choice;
         std::cin >> choice;
 
         if (choice == 'o') {
-            s.Complete();
-            std::cout << s << std::endl;
+            c.base.Complete();
+            std::cout << c.base << std::endl;
         }
     }
 

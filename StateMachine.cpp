@@ -178,10 +178,6 @@ void StateMachine::Standardize() {
     standard = true;
 }
 
-void StateMachine::Determinize() {
-    if (deterministic) return;
-}
-
 void StateMachine::Complete() {
     if (complete) return;
 
@@ -204,4 +200,8 @@ std::weak_ptr<State> StateMachine::AddState() {
     states.push_back(newState);
 
     return newState;
+}
+
+void StateMachineContainer::Determinize() {
+
 }
