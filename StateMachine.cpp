@@ -3,6 +3,7 @@
 namespace fs = std::filesystem;
 #include <fstream>
 #include <iostream>
+#include <set>
 
 const char SYMBOLS[27] = {'#','a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
 
@@ -30,7 +31,8 @@ std::ostream & operator<<(std::ostream & Str, StateMachine const & v) {
                         Str << " " << s->transitions.at(SYMBOLS[i])[0].lock()->number << "  | ";
                         break;
                     case 3:
-                        Str << "" << s->transitions.at(SYMBOLS[i])[0].lock()->number << s->transitions.at(SYMBOLS[i])[1].lock()->number << " | ";
+                        Str << "" << s->transitions.at(SYMBOLS[i])[0].lock()->number << s->transitions.at(SYMBOLS[i])[1].lock()->number << s->transitions.at(SYMBOLS[i])[2].lock()->number << " | ";
+                        break;
                     default:
                         for (int j = 0; j < count; ++j) {
                             Str << s->transitions.at(SYMBOLS[i])[j].lock()->number;
@@ -38,6 +40,7 @@ std::ostream & operator<<(std::ostream & Str, StateMachine const & v) {
                         int spaces = 4 - count;
                         std::string st (" ", spaces);
                         Str << (spaces > 0 ? std::string(spaces, ' ') : "") << "| ";
+                        break;
                 }
             }
         }
@@ -49,6 +52,10 @@ std::ostream & operator<<(std::ostream & Str, StateMachine const & v) {
     "\nStandard : " << (v.standard ? "oui" : "non") << "\nComplet : " << (v.complete ? "oui" : "non");
 
     return Str;
+}
+
+bool operator<(const State& s, const State& other)  {
+    return s.number < other.number;
 }
 
 StateMachine::StateMachine(const std::string& filePath) {
@@ -116,6 +123,16 @@ State::State(int number, int alphabetLength) {
 
 void State::AddTransition(char symbol, std::weak_ptr<State> to)
 {
+    auto toShared = to.lock();
+
+    auto it = std::find_if(transitions[symbol].begin(), transitions[symbol].end(),
+                        [&toShared](const std::weak_ptr<State>& wp) {
+        auto sp = wp.lock();
+        return sp && sp == toShared;
+    });
+
+    if (it != transitions[symbol].end()) return;
+
     transitions[symbol].push_back(to);
 }
 
@@ -161,10 +178,9 @@ void StateMachine::Standardize() {
     newState.lock()->in = true;
     std::cout << "Création de l'état initial " << newState.lock()->number << std::endl;
 
-    for (int i = 0; i < inputs.size(); ++i) {
-        if (!states[i]->in) continue;
-
+    for (int i : inputs) {
         if(states[i]->out) newState.lock()->out = true;
+        states[i]->in = false;
 
         for (int j = 0; j < states[i]->transitions.size(); ++j) {
             for (int k = 0; k < states[i]->transitions[SYMBOLS[j]].size(); ++k) {
@@ -175,6 +191,7 @@ void StateMachine::Standardize() {
         states[i]->in = false;
     }
 
+    inputs = {newState.lock()->number};
     standard = true;
 }
 
@@ -203,5 +220,117 @@ std::weak_ptr<State> StateMachine::AddState() {
 }
 
 void StateMachineContainer::Determinize() {
+    deterministic = base.Determinize();
+    determinized = true;
+}
 
+StateMachine StateMachine::Determinize()  {
+    StateMachine result;
+    result.alphabetLength = alphabetLength;  // Assuming the alphabet length is the same for the DFA
+    result.synchronous = synchronous;
+    result.deterministic = true;  // The result is definitely a DFA
+
+    std::map<std::set<int>, std::shared_ptr<State>> stateMap; // Maps sets of NFA states to DFA states
+    std::queue<std::shared_ptr<State>> stateQueue; // Queue to manage states for processing
+
+    // Initialize the start set with all NFA initial states
+    std::set<int> startSet;
+    bool startOut = false;
+    for (int i : inputs) {
+        startSet.insert(states[i]->number);
+        if (states[i]->out) startOut = true;
+    }
+
+    auto startState = std::make_shared<State>(0, alphabetLength);
+    startState->compositeStates = startSet;
+    startState->in = true;  // Marking it as an initial state
+    if (startOut) {startState->out = true; result.outputs.push_back(startState->number); }
+    result.states.push_back(startState);
+    result.inputs.push_back(0);  // This is the initial state of the DFA
+    stateMap[startSet] = startState;
+    stateQueue.push(startState);
+
+    while (!stateQueue.empty()) {
+        auto currentState = stateQueue.front();
+        stateQueue.pop();
+
+        // Process each symbol in the alphabet
+        for (int i = 1; i <= alphabetLength; ++i) {
+            std::set<int> newStateSet;
+            bool isOut = false;
+
+            // Determine the new set of states for this symbol
+            for (int nfaState : currentState->compositeStates) {
+                auto nfaStatePtr = states[nfaState];
+                for (auto& transState : nfaStatePtr->transitions[SYMBOLS[i]]) {
+                    if (auto spt = transState.lock()) {
+                        newStateSet.insert(spt->number);
+                        isOut |= spt->out; // Check if any of the NFA states had an accepting condition
+                    }
+                }
+            }
+
+            if (!newStateSet.empty()) {
+                // Check if the new state set is already covered by an existing state
+                bool isNewStateNeeded = true;
+                std::shared_ptr<State> targetState = nullptr;
+                for (const auto& existingState : result.states) {
+                    if (std::includes(existingState->compositeStates.begin(), existingState->compositeStates.end(),
+                                      newStateSet.begin(), newStateSet.end())) {
+                        currentState->AddTransition(SYMBOLS[i], existingState);
+                        isNewStateNeeded = false;
+                        break;
+                    }
+                }
+
+                if (isNewStateNeeded && stateMap.find(newStateSet) == stateMap.end()) {
+                    // Create new DFA state if it does not exist
+                    auto newState = std::make_shared<State>(result.states.size(), alphabetLength);
+                    newState->compositeStates = newStateSet;
+                    newState->out = isOut; // Set if any state in the set is an output state
+                    result.states.push_back(newState);
+                    stateMap[newStateSet] = newState;
+                    stateQueue.push(newState);
+                    if (isOut) {
+                        result.outputs.push_back(newState->number);  // Add to outputs if it's an accepting state
+                    }
+                    targetState = newState;
+                }
+
+                // Add transition
+                if (targetState != nullptr) currentState->AddTransition(SYMBOLS[i], stateMap[newStateSet]);
+            }
+        }
+    }
+
+    result.Evaluate();
+    return result; // Return the new DFA
+}
+
+bool StateMachine::Test(std::string input) {
+    int i = 0;
+
+    int currentState = inputs[0];
+
+    while (true) {
+        char letter = input[i];
+        if (states[currentState]->transitions[letter].empty()) return states[currentState]->out;
+
+        currentState = states[currentState]->transitions[letter][0].lock()->number;
+        i++;
+    }
+}
+
+StateMachine StateMachine::Complimentary() {
+    StateMachine result;
+    result.states = states;
+    result.inputs = inputs;
+    for (int i = 0; i < states.size(); ++i) {
+        if (!states[i]->out) {outputs.push_back(i); result.states[i]->out = true;}
+        else result.states[i]->out = false;
+    }
+    result.alphabetLength = alphabetLength;
+    result.Evaluate();
+
+    return result;
 }

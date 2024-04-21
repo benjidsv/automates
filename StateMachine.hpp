@@ -3,6 +3,9 @@
 
 #include <vector>
 #include <string>
+#include <queue>
+#include <map>
+#include <set>
 #include <unordered_map>
 #include <memory>
 //TODO: DETERMINISER
@@ -18,13 +21,13 @@
 //   - complet: chaque état a au moins 1 transition par lettre x
 // - asynchrone: transition mot vide
 
-class Transition;
-
 class State {
 public:
     int number;
     std::unordered_map<char, std::vector<std::weak_ptr<State>>> transitions;
     bool in, out;
+
+    std::set<int> compositeStates;
 
     explicit State(int number, int alphabetLength);
 
@@ -32,14 +35,12 @@ public:
 };
 
 class StateMachine {
-    std::vector<int> inputs, outputs;
-
 public:
+    std::vector<int> inputs, outputs;
     int alphabetLength{};
     bool synchronous{}, deterministic{}, standard{}, complete{};
     explicit StateMachine();
     explicit StateMachine(const std::string& filePath);
-    explicit StateMachine(const StateMachine& other);
 
     std::vector<std::shared_ptr<State>> states;
 
@@ -51,7 +52,13 @@ public:
 
     void Complete();
 
+    StateMachine Complimentary();
+
     void Synchronize();
+
+    bool Test(std::string input);
+
+    StateMachine Determinize();
 };
 
 class StateMachineContainer {
